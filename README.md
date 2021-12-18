@@ -22,7 +22,7 @@ SP to IDP mapping is configured in src/main/java/com/multitenant/demo/model/SPTe
 <hr>
 
 == Notes:
-1. By default the demo sets SP entity id to : <base-url>/sp. This can be overwritten by updating src/main/java/com/multitenant/demo/model/SPTenantConfig.java
+1. By default the demo sets SP entity id to : {base-url}/sp. This can be overwritten by updating src/main/java/com/multitenant/demo/model/SPTenantConfig.java
 2. SP SAML keys/certificates are stored in resources/saml/samlKeystore.jks file
 3. Password and key name are configured in application.properties (these should be moved to a secure store)
 4. IDP metadata URL's are used in this demo but metadata files can be used instead (https://docs.spring.io/spring-security-saml/docs/current/reference/htmlsingle/#quick-start-idp-metadata)
