@@ -1,4 +1,4 @@
-# spring-security4-saml-multitenant-demo
+# spring-security4-saml-multitenancy-demo
 Spring Security4 SAML - Multitenancy Demo
 
 This is a demo application that demonstrates multi tenancy implementation (multiple SP's support for the same code) for Spring Security 4 application using Spring Security SAML extension. This project should only be used for reference.
