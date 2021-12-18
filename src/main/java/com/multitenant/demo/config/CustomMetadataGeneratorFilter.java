@@ -11,9 +11,6 @@ import javax.servlet.http.HttpServletRequest;
 
 @PropertySource(value = { "classpath:application.properties" })
 public class CustomMetadataGeneratorFilter extends MetadataGeneratorFilter {
-    @Value("${saml.didi}")
-    private String didi = null;
-
     public CustomMetadataGeneratorFilter(MetadataGenerator generator) {
         super(generator);
     }

@@ -492,5 +492,4 @@ public class WebSecurityConfig extends WebSecurityConfigurerAdapter implements I
    public void destroy() throws Exception {
       shutdown();
    }
-
 }
