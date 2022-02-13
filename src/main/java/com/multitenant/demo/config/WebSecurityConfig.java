@@ -1,11 +1,13 @@
 package com.multitenant.demo.config;
 
+import java.io.IOException;
 import java.util.*;
 
 import com.multitenant.demo.model.SPTenantConfig;
 import org.apache.commons.httpclient.HttpClient;
 import org.apache.commons.httpclient.MultiThreadedHttpConnectionManager;
 import org.apache.velocity.app.VelocityEngine;
+import org.opensaml.saml2.metadata.provider.FilesystemMetadataProvider;
 import org.opensaml.saml2.metadata.provider.HTTPMetadataProvider;
 import org.opensaml.saml2.metadata.provider.MetadataProvider;
 import org.opensaml.saml2.metadata.provider.MetadataProviderException;
@@ -18,6 +20,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.PropertySource;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.DefaultResourceLoader;
 import org.springframework.core.io.Resource;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -233,10 +236,32 @@ public class WebSecurityConfig extends WebSecurityConfigurerAdapter implements I
       return idpDiscovery;
    }
 
-   public ExtendedMetadataDelegate tenantExtendedMetadataProvider(String metadataURL) throws MetadataProviderException {
-      HTTPMetadataProvider httpMetadataProvider = new HTTPMetadataProvider(this.backgroundTaskTimer, httpClient(), metadataURL);
+   public ExtendedMetadataDelegate tenantSPExtendedMetadataProvider(String spAlias, String metadataPath) throws IOException, MetadataProviderException {
+      FilesystemMetadataProvider filesystemMetadataProvider = new FilesystemMetadataProvider(new ClassPathResource(metadataPath).getFile());
+      filesystemMetadataProvider.setParserPool(parserPool());
+      ExtendedMetadata extendedMetadata = new ExtendedMetadata();
+      extendedMetadata.setSigningAlgorithm("http://www.w3.org/2001/04/xmldsig-more#rsa-sha256");
+      extendedMetadata.setSignMetadata(true);
+      extendedMetadata.setLocal(true);
+      extendedMetadata.setAlias(spAlias);
+
+      ExtendedMetadataDelegate extendedMetadataDelegate = new ExtendedMetadataDelegate(filesystemMetadataProvider, extendedMetadata);
+      extendedMetadataDelegate.setMetadataTrustCheck(false);
+      extendedMetadataDelegate.setMetadataRequireSignature(false);
+      backgroundTaskTimer.purge();
+      return extendedMetadataDelegate;
+   }
+
+   public ExtendedMetadataDelegate tenantIDPExtendedMetadataProvider(String idpMetadataURL) throws MetadataProviderException {
+      HTTPMetadataProvider httpMetadataProvider = new HTTPMetadataProvider(this.backgroundTaskTimer, httpClient(), idpMetadataURL);
       httpMetadataProvider.setParserPool(parserPool());
-      ExtendedMetadataDelegate extendedMetadataDelegate = new ExtendedMetadataDelegate(httpMetadataProvider, extendedMetadata());
+      ExtendedMetadata extendedMetadata = new ExtendedMetadata();
+      extendedMetadata.setIdpDiscoveryEnabled(false);
+      extendedMetadata.setSigningAlgorithm("http://www.w3.org/2001/04/xmldsig-more#rsa-sha256");
+      extendedMetadata.setSignMetadata(true);
+      extendedMetadata.setEcpEnabled(true);
+
+      ExtendedMetadataDelegate extendedMetadataDelegate = new ExtendedMetadataDelegate(httpMetadataProvider, extendedMetadata);
       extendedMetadataDelegate.setMetadataTrustCheck(false);
       extendedMetadataDelegate.setMetadataRequireSignature(false);
       backgroundTaskTimer.purge();
@@ -248,12 +273,13 @@ public class WebSecurityConfig extends WebSecurityConfigurerAdapter implements I
    // Do no forget to call iniitalize method on providers
    @Bean
    @Qualifier("metadata")
-   public CachingMetadataManager metadata() throws MetadataProviderException {
+   public CachingMetadataManager metadata() throws MetadataProviderException, IOException {
       List<MetadataProvider> providers = new ArrayList<MetadataProvider>();
       SPTenantConfig spTenantConfig = new SPTenantConfig();
-      List<String> idpList = spTenantConfig.getIDPList();
-      for (String idp:idpList) {
-         providers.add(tenantExtendedMetadataProvider(idp));
+      Map<String, SPTenantConfig.SPTenant> spList = spTenantConfig.getSpTenants();
+      for (Map.Entry<String, SPTenantConfig.SPTenant> entry: spList.entrySet()) {
+         providers.add(tenantIDPExtendedMetadataProvider(entry.getValue().getIdpMetadataPath()));
+         providers.add(tenantSPExtendedMetadataProvider(entry.getValue().getSpAlias(), entry.getValue().getSpMetadataPath()));
       }
       return new CachingMetadataManager(providers);
    }
@@ -311,11 +337,6 @@ public class WebSecurityConfig extends WebSecurityConfigurerAdapter implements I
       samlWebSSOProcessingFilter.setAuthenticationSuccessHandler(successRedirectHandler());
       samlWebSSOProcessingFilter.setAuthenticationFailureHandler(authenticationFailureHandler());
       return samlWebSSOProcessingFilter;
-   }
-
-   @Bean
-   public MetadataGeneratorFilter metadataGeneratorFilter() {
-      return new CustomMetadataGeneratorFilter(metadataGenerator());
    }
 
    // Handler for successful logout
@@ -456,7 +477,6 @@ public class WebSecurityConfig extends WebSecurityConfigurerAdapter implements I
               .httpBasic()
               .authenticationEntryPoint(samlEntryPoint());
       http
-              .addFilterBefore(metadataGeneratorFilter(), ChannelProcessingFilter.class)
               .addFilterAfter(samlFilter(), BasicAuthenticationFilter.class)
               .addFilterBefore(samlFilter(), CsrfFilter.class);
       http
